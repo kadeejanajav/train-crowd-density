@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Train Crowd Status</title>
+<style>
+  :root { --green:#2e7d32; --orange:#ef6c00; --red:#c62828; --gray:#616161; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    margin: 0; padding: 16px; background: #f5f5f5; color: #212121;
+  }
+  .card {
+    background: white; border-radius: 12px; padding: 20px;
+    max-width: 420px; margin: 0 auto 16px auto;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+  }
+  h1 { font-size: 20px; margin: 0 0 16px 0; text-align: center; }
+  input {
+    width: 100%; padding: 12px; font-size: 16px; border-radius: 8px;
+    border: 1px solid #ccc; margin-bottom: 12px;
+  }
+  button {
+    width: 100%; padding: 14px; font-size: 16px; border: none;
+    border-radius: 8px; background: #1565c0; color: white; font-weight: 600;
+  }
+  button:active { opacity: 0.85; }
+  .level-badge {
+    display: inline-block; padding: 6px 16px; border-radius: 20px;
+    color: white; font-weight: 700; font-size: 15px;
+  }
+  .Low { background: var(--green); }
+  .Medium { background: var(--orange); }
+  .High { background: var(--red); }
+  .Overcrowded { background: var(--red); }
+  .status-row { display: flex; justify-content: space-between; margin: 10px 0; font-size: 15px; }
+  .muted { color: #757575; font-size: 13px; text-align: center; margin-top: 8px; }
+  #bookResult { margin-top: 12px; padding: 12px; border-radius: 8px; font-size: 14px; display: none; }
+  .success { background: #e8f5e9; color: var(--green); display: block !important; }
+  .rejected { background: #ffebee; color: var(--red); display: block !important; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>🚆 Check Train Crowd Status</h1>
+  <input id="trainInput" type="text" placeholder="Enter train number e.g. 16526" value="16526">
+  <button onclick="checkStatus()">Check Status</button>
+
+  <div id="statusBox" style="margin-top:20px; display:none;">
+    <div style="text-align:center;">
+      <span id="levelBadge" class="level-badge">-</span>
+    </div>
+    <div class="status-row"><span>Estimated passengers</span><strong id="countVal">-</strong></div>
+    <div class="status-row"><span>Occupancy</span><strong id="ratioVal">-</strong></div>
+    <div class="muted" id="updatedVal"></div>
+  </div>
+</div>
+
+<div class="card">
+  <h1>🎟️ Book a Ticket</h1>
+  <p class="muted" style="margin-top:-8px;">Booking is automatically blocked if the train is already Overcrowded.</p>
+  <button onclick="bookTicket()">Book Ticket for This Train</button>
+  <div id="bookResult"></div>
+</div>
+
+<script>
+  const API_URL = "http://localhost:8000";
+
+  async function checkStatus() {
+    const train = document.getElementById('trainInput').value.trim();
+    if (!train) return;
+
+    try {
+      const res = await fetch(`${API_URL}/occupancy/${train}`);
+      const data = await res.json();
+
+      document.getElementById('statusBox').style.display = 'block';
+      const badge = document.getElementById('levelBadge');
+      badge.textContent = data.level;
+      badge.className = 'level-badge ' + data.level;
+
+      document.getElementById('countVal').textContent = data.count;
+      document.getElementById('ratioVal').textContent = Math.round(data.occupancy_ratio * 100) + '%';
+      document.getElementById('updatedVal').textContent = data.last_updated
+        ? `Last updated: ${new Date(data.last_updated).toLocaleTimeString()}`
+        : 'No live data yet - run the entry simulator';
+    } catch (err) {
+      alert('Could not reach the server. Is the backend running on port 8000?');
+    }
+  }
+
+  async function bookTicket() {
+    const train = document.getElementById('trainInput').value.trim();
+    if (!train) return;
+
+    const resultBox = document.getElementById('bookResult');
+
+    try {
+      const res = await fetch(`${API_URL}/booking/${train}`, { method: 'POST' });
+      const data = await res.json();
+
+      if (res.ok) {
+        resultBox.className = 'success';
+        resultBox.textContent = `✅ ${data.message}. New count: ${data.status.count}`;
+      } else {
+        resultBox.className = 'rejected';
+        resultBox.textContent = `❌ ${data.detail}`;
+      }
+      checkStatus();
+    } catch (err) {
+      alert('Could not reach the server. Is the backend running on port 8000?');
+    }
+  }
+
+  // Auto-refresh status every 5 seconds
+  setInterval(checkStatus, 5000);
+  checkStatus();
+</script>
+
+</body>
+</html>
